@@ -1,5 +1,5 @@
 language: go
-go_import_path: github.com/constabulary/kodos
+go_import_path: github.com/bketelsen/golo
 go:
   - 1.7.x
   - tip
@@ -10,6 +10,6 @@ install:
   - true
 
 script:
-  - go build -o $HOME/kodos -v github.com/constabulary/kodos/cmd/kodos
-  - $HOME/kodos
-  - $HOME/kodos
+  - go build -o $HOME/golo-v github.com/bketelsen/golo/cmd/golo
+  - $HOME/golo
+  - $HOME/golo

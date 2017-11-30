@@ -1,4 +1,4 @@
-package kodos
+package golo
 
 import (
 	"fmt"
@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 )
+
+var Verbose bool
 
 // Context contains all build specific values.
 type Context struct {
@@ -215,7 +217,9 @@ func (pkg *Package) Compile() error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Dir = dir
-		fmt.Fprintf(os.Stderr, "+ %s\n", strings.Join(cmd.Args, " "))
+		if Verbose {
+			fmt.Fprintf(os.Stderr, "+ %s\n", strings.Join(cmd.Args, " "))
+		}
 		return cmd.Run()
 	}
 
@@ -261,15 +265,18 @@ func (pkg *Package) Compile() error {
 		return err
 	}
 	if err := gc(pkg); err != nil {
+		fmt.Println("----------------Error compiling:", pkg.ImportPath, err.Error())
 		return nil
 	}
 	for _, sfile := range pkg.SFiles {
 		if err := asm(pkg, filepath.Join(filepath.Dir(pkg.objfile()), strings.TrimSuffix(sfile, ".s")+".o"), sfile); err != nil {
+			fmt.Println("----------------Error asm:", pkg.objfile(), err.Error())
 			return err
 		}
 	}
 	if len(ofiles) > 1 {
 		if err := pack(pkg, ofiles...); err != nil {
+			fmt.Println("----------------Error pack:", pkg.objfile(), err.Error())
 			return err
 		}
 	}
@@ -296,7 +303,9 @@ func (pkg *Package) Link() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Dir = pkg.Workdir
-	fmt.Fprintf(os.Stderr, "+ %s\n", strings.Join(cmd.Args, " "))
+	if Verbose {
+		fmt.Fprintf(os.Stderr, "+ %s\n", strings.Join(cmd.Args, " "))
+	}
 	if err := cmd.Run(); err != nil {
 		os.Remove(tmp.Name()) // remove partial file
 		return err
@@ -343,7 +352,9 @@ func mkdir(path string) error {
 }
 
 func rename(from, to string) error {
-	fmt.Fprintf(os.Stderr, "+ mv %s %s\n", from, to)
+	if Verbose {
+		fmt.Fprintf(os.Stderr, "+ mv %s %s\n", from, to)
+	}
 	return os.Rename(from, to)
 }
 
@@ -363,13 +374,15 @@ func copyfile(dst, src string) error {
 		return err
 	}
 	defer w.Close()
-	fmt.Fprintln(os.Stderr, "+ cp", src, dst)
+	if Verbose {
+		fmt.Fprintln(os.Stderr, "+ cp", src, dst)
+	}
 	_, err = io.Copy(w, r)
 	return err
 }
 
 // Transform takes a slice of go/build.Package and returns the
-// corresponding slice of kodos.Packages.
+// corresponding slice of golo.Packages.
 func (ctx *Context) Transform(v ...*build.Package) []*Package {
 	pkgs := transform(ctx, v...)
 	computeStale(pkgs...)
