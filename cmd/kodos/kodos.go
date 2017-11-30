@@ -12,7 +12,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/constabulary/kodos"
+	"github.com/bketelsen/kodos"
+	"github.com/bketelsen/kodos/gitconfig"
 )
 
 func check(err error) {
@@ -29,7 +30,7 @@ func fatal(arg interface{}, args ...interface{}) {
 }
 
 func main() {
-	pkgptr := flag.String("package", "github.com/constabulary/kodos", "the import path of your package")
+	pkgptr := flag.String("package", "", "the import path of your package")
 
 	flag.Parse()
 	dir, err := findreporoot(cwd())
@@ -51,7 +52,13 @@ func main() {
 	}
 
 	action := "build"
-	prefix := *pkgptr
+	var prefix string
+	if *pkgptr == "" {
+		prefix = guessPackage(dir)
+		fmt.Println("Using guessed package", prefix)
+	} else {
+		prefix = *pkgptr
+	}
 
 	switch action {
 	case "build":
@@ -69,6 +76,17 @@ func main() {
 	default:
 		fatal("unknown action:", action)
 	}
+}
+
+func guessPackage(dir string) string {
+	url, err := gitconfig.OriginURL()
+	check(err)
+	fmt.Println(url, err)
+	// hack - support git@ later
+	url = strings.Replace(url, "https://", "", -1)
+
+	return url
+
 }
 
 func cwd() string {
@@ -128,6 +146,7 @@ func loadSources(prefix string, dir string) []*build.Package {
 	case (*build.NoGoError):
 		// do nothing
 	default:
+		fmt.Println("DEFAULTED to throw the panic", err)
 		check(err)
 	}
 
@@ -136,18 +155,20 @@ func loadSources(prefix string, dir string) []*build.Package {
 
 func loadDependencies(rootdir string, srcs ...*build.Package) []*build.Package {
 	load := func(path string) *build.Package {
-		var found bool
-		var err error
-		fmt.Println("Rootdir:", rootdir)
-		fmt.Println("checking for ", path)
-		fmt.Println("Trying go source")
+		//		var found bool
+		//		var err error
+		//		fmt.Println("Rootdir:", rootdir)
+		//		fmt.Println("checking for ", path)
+		//		fmt.Println("Trying go source")
 		dir := filepath.Join(runtime.GOROOT(), "src", path)
-		if _, err = os.Stat(dir); err != nil {
-			found = false
-		} else {
-			found = true
+		if _, err := os.Stat(dir); err != nil {
+			fatal("cannot resolve path", path, err.Error())
 		}
-		if !found && strings.Contains(path, "golang_org") {
+		//			found = false
+		//		} else {
+		//			found = true
+		//		}
+		/*if !found && strings.Contains(path, "golang_org") {
 
 			dir = filepath.Join(runtime.GOROOT(), "src", "vendor", path)
 			if _, err = os.Stat(dir); err != nil {
@@ -173,6 +194,7 @@ func loadDependencies(rootdir string, srcs ...*build.Package) []*build.Package {
 		if !found {
 			fatal("cannot resolve path ", path, err.Error())
 		}
+		*/
 		return importPath(path, dir)
 	}
 
@@ -180,9 +202,6 @@ func loadDependencies(rootdir string, srcs ...*build.Package) []*build.Package {
 	var walk func(string)
 	walk = func(path string) {
 		fmt.Println("Walk", path)
-		if path == "C" {
-			return
-		}
 		if seen[path] {
 			return
 		}
