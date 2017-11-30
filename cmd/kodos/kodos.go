@@ -162,7 +162,13 @@ func loadDependencies(rootdir string, srcs ...*build.Package) []*build.Package {
 		//		fmt.Println("Trying go source")
 		dir := filepath.Join(runtime.GOROOT(), "src", path)
 		if _, err := os.Stat(dir); err != nil {
-			fatal("cannot resolve path", path, err.Error())
+			fmt.Println("Trying vendor")
+			fmt.Println("rootdir, path", rootdir, path)
+			dir = filepath.Join(rootdir, "vendor", path)
+			fmt.Println("Trying ", dir)
+			if _, err = os.Stat(dir); err != nil {
+				fatal("cannot resolve path", path, err.Error())
+			}
 		}
 		//			found = false
 		//		} else {
@@ -218,6 +224,7 @@ func loadDependencies(rootdir string, srcs ...*build.Package) []*build.Package {
 
 	for _, src := range srcs[:] {
 		for _, i := range src.Imports {
+			fmt.Println(src, i)
 			walk(i)
 		}
 	}
