@@ -83,8 +83,10 @@ func guessPackage(dir string) string {
 	check(err)
 	fmt.Println(url, err)
 	// hack - support git@ later
+	// TODO make this work with git@, get rid of hacky string replaces
+	// maybe parse the .git/config manually instead of the imported package
 	url = strings.Replace(url, "https://", "", -1)
-
+	url = strings.Replace(url, ".git", "", -1)
 	return url
 
 }
