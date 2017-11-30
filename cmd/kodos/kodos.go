@@ -29,6 +29,8 @@ func fatal(arg interface{}, args ...interface{}) {
 }
 
 func main() {
+	pkgptr := flag.String("package", "github.com/constabulary/kodos", "the import path of your package")
+
 	flag.Parse()
 	dir, err := findreporoot(cwd())
 	check(err)
@@ -49,15 +51,16 @@ func main() {
 	}
 
 	action := "build"
-	prefix := "github.com/constabulary/kodos"
+	prefix := *pkgptr
 
 	switch action {
 	case "build":
+		fmt.Println("load sources")
 		srcs := loadSources(prefix, dir)
 		for _, src := range srcs {
 			fmt.Printf("loaded %s (%s)\n", src.ImportPath, src.Name)
 		}
-
+		fmt.Println("load dependencies")
 		srcs = loadDependencies(dir, srcs...)
 		pkgs := ctx.Transform(srcs...)
 		fn, err := kodos.BuildPackages(pkgs...)
@@ -133,8 +136,41 @@ func loadSources(prefix string, dir string) []*build.Package {
 
 func loadDependencies(rootdir string, srcs ...*build.Package) []*build.Package {
 	load := func(path string) *build.Package {
+		var found bool
+		var err error
+		fmt.Println("Rootdir:", rootdir)
+		fmt.Println("checking for ", path)
+		fmt.Println("Trying go source")
 		dir := filepath.Join(runtime.GOROOT(), "src", path)
-		if _, err := os.Stat(dir); err != nil {
+		if _, err = os.Stat(dir); err != nil {
+			found = false
+		} else {
+			found = true
+		}
+		if !found && strings.Contains(path, "golang_org") {
+
+			dir = filepath.Join(runtime.GOROOT(), "src", "vendor", path)
+			if _, err = os.Stat(dir); err != nil {
+				found = false
+			} else {
+				found = true
+			}
+		}
+
+		if !found {
+			fmt.Println("Trying vendor")
+			fmt.Println("rootdir, path", rootdir, path)
+			dir = filepath.Join(rootdir, "vendor", path)
+			fmt.Println("Trying ", dir)
+			if _, err = os.Stat(dir); err != nil {
+				found = false
+				fmt.Println("Not found")
+			} else {
+				fmt.Println("Found")
+				found = true
+			}
+		}
+		if !found {
 			fatal("cannot resolve path ", path, err.Error())
 		}
 		return importPath(path, dir)
@@ -143,6 +179,10 @@ func loadDependencies(rootdir string, srcs ...*build.Package) []*build.Package {
 	seen := make(map[string]bool)
 	var walk func(string)
 	walk = func(path string) {
+		fmt.Println("Walk", path)
+		if path == "C" {
+			return
+		}
 		if seen[path] {
 			return
 		}
@@ -156,6 +196,7 @@ func loadDependencies(rootdir string, srcs ...*build.Package) []*build.Package {
 	for _, src := range srcs {
 		seen[src.ImportPath] = true
 	}
+
 	for _, src := range srcs[:] {
 		for _, i := range src.Imports {
 			walk(i)
@@ -182,6 +223,7 @@ func register(rootdir, prefix, kind, arg string, next func(string) *build.Packag
 }
 
 func importPath(path, dir string) *build.Package {
+	fmt.Println("checking import path for ", path, dir)
 	pkg, err := build.ImportDir(dir, 0)
 	check(err)
 	// ImportDir does not know the import path for this package
