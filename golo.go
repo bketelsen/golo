@@ -187,7 +187,7 @@ func (pkg *Package) binname() string {
 
 func (p *Package) complete() bool {
 	switch p.ImportPath {
-	case "bytes", "net", "os", "runtime/pprof", "sync", "time":
+	case "bytes", "net", "os", "runtime/pprof", "sync", "time", "internal/poll":
 		return false
 	default:
 		return len(p.SFiles) == 0 // no cgo or runtime code
