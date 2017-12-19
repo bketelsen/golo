@@ -6,14 +6,16 @@ import (
 	"fmt"
 	"go/build"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 
+	"bitbucket.org/rw_grim/govcs"
+
 	"github.com/bketelsen/golo"
-	"github.com/bketelsen/golo/gitconfig"
 )
 
 var verbose bool
@@ -51,8 +53,10 @@ func main() {
 	// icky
 	golo.Verbose = verbose
 
-	dir, err := findreporoot(cwd())
+	vcs, err := govcs.Detect(cwd())
 	check(err)
+
+	dir := vcs.Root()
 
 	report("Repository Root", dir)
 
@@ -72,10 +76,8 @@ func main() {
 	action := "build"
 	var prefix string
 	if *pkgptr == "" {
-		prefix, err = guessPackage(dir)
-		if err != nil {
-			fatal("unable to access git repository info. Please specify a package name with the -package flag.")
-		}
+		prefix, err = guessPackage(vcs.Remote(""))
+		check(err)
 		report("Using guessed package", prefix)
 	} else {
 		prefix = *pkgptr
@@ -103,47 +105,19 @@ func main() {
 	}
 }
 
-func guessPackage(dir string) (string, error) {
-	url, err := gitconfig.OriginURL()
+func guessPackage(remote string) (string, error) {
+	uri, err := url.Parse(remote)
 	if err != nil {
 		return "", err
 	}
-	reportf("Found git url %s, error: %v\n", url, err)
-	// hack - support git@ later
-	// TODO make this work with git@, get rid of hacky string replaces
-	// maybe parse the .git/config manually instead of the imported package
-	url = strings.Replace(url, "https://", "", -1)
-	url = strings.Replace(url, ".git", "", -1)
-	return url, nil
 
+	return uri.Host + uri.Path, nil
 }
 
 func cwd() string {
 	wd, err := os.Getwd()
 	check(err)
 	return wd
-}
-
-// findreporoot returns the location of the closest .git directory
-// relative to the dir provided.
-func findreporoot(dir string) (string, error) {
-	orig := dir
-	for {
-		path := filepath.Join(dir, ".git")
-		fi, err := os.Stat(path)
-		if err == nil && fi.IsDir() {
-			return dir, nil
-		}
-		if err != nil && !os.IsNotExist(err) {
-			check(err)
-		}
-		d := filepath.Dir(dir)
-		if d == dir {
-			// got to the root directory without
-			return "", fmt.Errorf("could not locate .git in %s", orig)
-		}
-		dir = d
-	}
 }
 
 func loadSources(prefix string, dir string) []*build.Package {
